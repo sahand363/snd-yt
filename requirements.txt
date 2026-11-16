@@ -1,2 +1,2 @@
 customtkinter
-yt-dlp
+yt-dlp[default]
