@@ -24,13 +24,18 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Download FFmpeg for bundling
+      - name: Download FFmpeg and Deno for bundling
         shell: pwsh
         run: |
+          # Download FFmpeg
           Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
           Expand-Archive -Path "ffmpeg.zip" -DestinationPath "ffmpeg_extracted"
           $ffmpegExe = Get-ChildItem -Path "ffmpeg_extracted" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
           Copy-Item $ffmpegExe.FullName -Destination "ffmpeg.exe"
+
+          # Download Deno (required by yt-dlp to solve YouTube JS challenges)
+          Invoke-WebRequest -Uri "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip" -OutFile "deno.zip"
+          Expand-Archive -Path "deno.zip" -DestinationPath "."
 
       - name: Build single-file Windows executable
         shell: pwsh
@@ -39,6 +44,7 @@ jobs:
             --name "snd-yt" `
             --collect-all customtkinter `
             --add-binary "ffmpeg.exe;." `
+            --add-binary "deno.exe;." `
             app.py
 
       - name: Upload Windows EXE artifact
