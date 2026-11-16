@@ -45,7 +45,7 @@ class MinimalYTDownloader(ctk.CTk):
         )
         self.url_entry.pack(fill="x", pady=(0, 14))
 
-        # Format, Resolution & Cookies Row
+        # Format, Resolution & Import Cookie Row
         self.controls_frame = ctk.CTkFrame(self.container, fg_color="transparent")
         self.controls_frame.pack(fill="x", pady=(0, 14))
 
@@ -57,7 +57,7 @@ class MinimalYTDownloader(ctk.CTk):
             variable=self.format_var,
             command=self.on_format_change,
             height=34,
-            width=130,
+            width=125,
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
         )
         self.format_switch.pack(side="left")
@@ -69,23 +69,35 @@ class MinimalYTDownloader(ctk.CTk):
             values=["Best", "2160p (4K)", "1440p", "1080p", "720p", "480p"],
             variable=self.res_var,
             height=34,
-            width=130,
+            width=125,
             font=ctk.CTkFont(family="Segoe UI", size=13),
         )
         self.res_menu.pack(side="left", padx=(10, 0))
 
-        # Cookies File Button (Click to load cookies.txt, click again to unload)
-        self.cookie_btn = ctk.CTkButton(
+        # Clear Cookie Button (hidden until a cookie file is imported)
+        self.clear_cookie_btn = ctk.CTkButton(
             self.controls_frame,
-            text="Cookies: None",
-            width=130,
+            text="×",
+            width=30,
+            height=34,
+            fg_color="#2B2D31",
+            hover_color="#991B1B",
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            command=self.clear_cookie,
+        )
+
+        # Import Cookie Button
+        self.import_cookie_btn = ctk.CTkButton(
+            self.controls_frame,
+            text="Import Cookie",
+            width=125,
             height=34,
             fg_color="#2B2D31",
             hover_color="#383A40",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
-            command=self.toggle_cookies_file,
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),
+            command=self.import_cookie,
         )
-        self.cookie_btn.pack(side="right")
+        self.import_cookie_btn.pack(side="right")
 
         # Save Folder Row
         self.folder_frame = ctk.CTkFrame(self.container, fg_color="transparent")
@@ -141,24 +153,30 @@ class MinimalYTDownloader(ctk.CTk):
         else:
             self.res_menu.configure(state="normal")
 
-    def toggle_cookies_file(self):
-        if self.cookie_file:
-            # Clear loaded cookies
-            self.cookie_file = None
-            self.cookie_btn.configure(text="Cookies: None", fg_color="#2B2D31")
-            self.status_label.configure(text="Cookies cleared.", text_color="#9CA3AF")
-        else:
-            # Pick a cookies.txt file
-            selected = filedialog.askopenfilename(
-                title="Select cookies.txt",
-                filetypes=[("Cookie Files", "*.txt"), ("All Files", "*.*")],
+    def import_cookie(self):
+        selected = filedialog.askopenfilename(
+            title="Select cookies.txt",
+            filetypes=[("Cookie Files", "*.txt"), ("All Files", "*.*")],
+        )
+        if selected:
+            self.cookie_file = selected
+            self.import_cookie_btn.configure(
+                text="Cookie Loaded", fg_color="#1F6AA5", hover_color="#144870", width=112
             )
-            if selected:
-                self.cookie_file = selected
-                self.cookie_btn.configure(text="Cookies: Loaded", fg_color="#1F6AA5")
-                self.status_label.configure(
-                    text=f"Loaded {os.path.basename(selected)}", text_color="#9CA3AF"
-                )
+            self.clear_cookie_btn.pack(side="right", padx=(4, 0))
+            self.import_cookie_btn.pack_forget()
+            self.import_cookie_btn.pack(side="right")
+            self.status_label.configure(
+                text=f"Cookie loaded: {os.path.basename(selected)}", text_color="#9CA3AF"
+            )
+
+    def clear_cookie(self):
+        self.cookie_file = None
+        self.clear_cookie_btn.pack_forget()
+        self.import_cookie_btn.configure(
+            text="Import Cookie", fg_color="#2B2D31", hover_color="#383A40", width=125
+        )
+        self.status_label.configure(text="Cookie removed.", text_color="#9CA3AF")
 
     def choose_folder(self):
         selected = filedialog.askdirectory(initialdir=self.download_dir)
