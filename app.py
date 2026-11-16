@@ -5,18 +5,12 @@ from tkinter import filedialog
 import customtkinter as ctk
 import yt_dlp
 
-# Configure modern dark appearance
+# Ensure bundled binaries (ffmpeg.exe, deno.exe) are on PATH when running as a PyInstaller .exe
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ.get("PATH", "")
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-
-
-def get_ffmpeg_dir():
-    """Locate bundled FFmpeg when packaged as a PyInstaller .exe, or fall back to system PATH."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        bundled = os.path.join(sys._MEIPASS, "ffmpeg.exe")
-        if os.path.exists(bundled):
-            return sys._MEIPASS
-    return None
 
 
 class MinimalYTDownloader(ctk.CTk):
@@ -24,10 +18,11 @@ class MinimalYTDownloader(ctk.CTk):
         super().__init__()
 
         self.title("snd-yt")
-        self.geometry("500x360")
+        self.geometry("500x365")
         self.resizable(False, False)
 
         self.download_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+        self.cookie_file = None
 
         # Main container
         self.container = ctk.CTkFrame(self, fg_color="transparent")
@@ -50,7 +45,7 @@ class MinimalYTDownloader(ctk.CTk):
         )
         self.url_entry.pack(fill="x", pady=(0, 14))
 
-        # Format & Resolution Row
+        # Format, Resolution & Cookies Row
         self.controls_frame = ctk.CTkFrame(self.container, fg_color="transparent")
         self.controls_frame.pack(fill="x", pady=(0, 14))
 
@@ -62,7 +57,7 @@ class MinimalYTDownloader(ctk.CTk):
             variable=self.format_var,
             command=self.on_format_change,
             height=34,
-            width=140,
+            width=130,
             font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"),
         )
         self.format_switch.pack(side="left")
@@ -74,20 +69,23 @@ class MinimalYTDownloader(ctk.CTk):
             values=["Best", "2160p (4K)", "1440p", "1080p", "720p", "480p"],
             variable=self.res_var,
             height=34,
-            width=135,
+            width=130,
             font=ctk.CTkFont(family="Segoe UI", size=13),
         )
-        self.res_menu.pack(side="left", padx=(12, 0))
+        self.res_menu.pack(side="left", padx=(10, 0))
 
-        # Firefox Cookies Switch
-        self.cookies_var = ctk.BooleanVar(value=True)
-        self.cookies_switch = ctk.CTkSwitch(
+        # Cookies File Button (Click to load cookies.txt, click again to unload)
+        self.cookie_btn = ctk.CTkButton(
             self.controls_frame,
-            text="Firefox Login",
-            variable=self.cookies_var,
+            text="Cookies: None",
+            width=130,
+            height=34,
+            fg_color="#2B2D31",
+            hover_color="#383A40",
             font=ctk.CTkFont(family="Segoe UI", size=12),
+            command=self.toggle_cookies_file,
         )
-        self.cookies_switch.pack(side="right")
+        self.cookie_btn.pack(side="right")
 
         # Save Folder Row
         self.folder_frame = ctk.CTkFrame(self.container, fg_color="transparent")
@@ -143,6 +141,25 @@ class MinimalYTDownloader(ctk.CTk):
         else:
             self.res_menu.configure(state="normal")
 
+    def toggle_cookies_file(self):
+        if self.cookie_file:
+            # Clear loaded cookies
+            self.cookie_file = None
+            self.cookie_btn.configure(text="Cookies: None", fg_color="#2B2D31")
+            self.status_label.configure(text="Cookies cleared.", text_color="#9CA3AF")
+        else:
+            # Pick a cookies.txt file
+            selected = filedialog.askopenfilename(
+                title="Select cookies.txt",
+                filetypes=[("Cookie Files", "*.txt"), ("All Files", "*.*")],
+            )
+            if selected:
+                self.cookie_file = selected
+                self.cookie_btn.configure(text="Cookies: Loaded", fg_color="#1F6AA5")
+                self.status_label.configure(
+                    text=f"Loaded {os.path.basename(selected)}", text_color="#9CA3AF"
+                )
+
     def choose_folder(self):
         selected = filedialog.askdirectory(initialdir=self.download_dir)
         if selected:
@@ -192,11 +209,8 @@ class MinimalYTDownloader(ctk.CTk):
             "outtmpl": os.path.join(self.download_dir, "%(title)s.%(ext)s"),
             "progress_hooks": [self.progress_hook],
             "noplaylist": True,
+            "extractor_args": {"youtube": {"player_client": ["default", "-web_embedded"]}},
         }
-
-        ffmpeg_dir = get_ffmpeg_dir()
-        if ffmpeg_dir:
-            ydl_opts["ffmpeg_location"] = ffmpeg_dir
 
         if fmt == "MP3":
             ydl_opts["format"] = "bestaudio/best"
@@ -208,7 +222,6 @@ class MinimalYTDownloader(ctk.CTk):
                 }
             ]
         else:
-            # Map selected resolution to yt-dlp height filter
             height_map = {
                 "2160p (4K)": "2160",
                 "1440p": "1440",
@@ -223,8 +236,8 @@ class MinimalYTDownloader(ctk.CTk):
                 ydl_opts["format"] = f"bv*[height<={h}]+ba/b[height<={h}]/best"
             ydl_opts["merge_output_format"] = "mp4"
 
-        if self.cookies_var.get():
-            ydl_opts["cookiesfrombrowser"] = ("firefox",)
+        if self.cookie_file and os.path.exists(self.cookie_file):
+            ydl_opts["cookiefile"] = self.cookie_file
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
